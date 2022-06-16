@@ -16,6 +16,7 @@
 
 ;; Destructuring and pattern matching can be very fruitful here
 ;; - even more so with https://github.com/clojure/core.match
+;; - clojure.zip and rewrite-clj could also be useful to manipulate FORMs
 
 ;; There is of course no need to match Clojure syntax with FORM notation
 ;; - self-equivalent re-entry FORMs cannot be represented 1:1, since they need special annotations and constraints
@@ -103,9 +104,14 @@
 (defn re-entry [f x]
   (lazy-seq (cons x (re-entry f (f x)))))
 ;; can be used as an iterative FORM builder:
-(take 3 (re-entry (fn [x] `[ (~@x) ]) `[ () ] ))
-(take 3 (re-entry (fn [x] `[ () ~@x ]) `[ () ] ))
-(take 3 (re-entry (fn [x] `[ ((~@x ~'a) ~'b) ]) `[ nil ] ))
+(take 3 (re-entry (fn [f] `[ (~@f) ]) `[ () ] ))
+(take 3 (re-entry (fn [f] `[ () ~@f ]) `[ () ] ))
+(take 3 (re-entry (fn [f] `[ ((~@f ~'a) ~'b) ]) `[ nil ] ))
+
+
+(def f `[ (f) ])
+(eval f)
+
 
 
 (comment
