@@ -1,7 +1,7 @@
-(ns formform-clj-lab.exp4-1
+(ns formform-clj-lab.exp4
   (:require [clojure.walk :as walk]))
 
-;; 16.06.2022
+;; 12.06.2022
 
 ;; This combines my symbolic approach (exp3) with my functional one (exp2).
 
@@ -42,19 +42,12 @@
 
 ;; VALUE
 
-(def n `nil)
 (def m `(·))
-;; doesn’t work well with eval and too cumbersome to deal with:
-;; -> just use 'u / 'i ?
-(def u ((fn f [] `(<· [(~f) n] n))))
-(def i `(· ~u))
+(def n `nil)
+(def fvals [n m])
 
-(def fvals [n u i m])
-
-(def n? nil?)
 (def m? (partial = m))
-(def u? (partial = u))
-(def i? (partial = i))
+(def n? nil?)
 
 
 ;; FORM
@@ -65,18 +58,27 @@
   ([f] (condp = f
          m n
          n m
-         u i
-         i u
          `(· ~f)))
   ([f & r]
-   (let [condense (comp (partial remove nil?) set)
-         cnt (condense (cons f r))]
+   (let [cnt (cons f r)]
      (cond
-       (< (count cnt) 2) (apply · cnt)
        (some #{m} cnt) n
-       (and (some #{u} cnt)
-            (some #{i} cnt)) n
+       (every? n? cnt) m
        :else `(· ~@cnt)))))
+
+(defn <>
+  "unmarked mark: […]" ; ? necessary?
+  ([]  n)
+  ([f] (condp = f
+         m m
+         n n
+         `(<> ~f)))
+  ([f & r]
+   (let [cnt (cons f r)]
+     (cond
+       (some #{m} cnt) m
+       (every? n? cnt) n
+       :else `(<> ~@cnt)))))
 
 
 ;; Syntactic sugar
@@ -140,20 +142,21 @@
   (let [a m
         b n
         form `(· (· ~a)(· ~b))]
-    (eval form))
+    (eval form)) ;=> nil
 
   ;; value tables are trivial:
-  ;; ! fix: INCORRECTLY EVALUATED for u/i with eval
   (into
     {}
     (for [a fvals
           b fvals
           :let [form `(·(· ~a) ~b)]]
       [[a b] (eval form)]))
-  ;; INCORRECT:
-  (eval `(·(· ~u) ~n))
-  ;; CORRECT:
-  (·(· u) n)
+  ;=>
+  ; {[nil nil] nil,
+  ;  [nil (·)] nil,
+  ;  [(·) nil] (·),
+  ;  [(·) (·)] nil}  (namespace omitted)
+
 
   ;; FORMs can be defined as more general symbolic expressions:
   (defn ·rel [a b] `(·· ~a ~b))
@@ -190,45 +193,21 @@
                 (<· n m n)
                 [n (·· m)])
            n)) ;=> (·)
-  ,)
 
-(comment
 
-  ;; quoting can be useful to evaluate recursive expressions safely:
+  ;; quoting 
   (let [re-form ((fn f [] `(· (~f))))]
     (take 3 (iterate eval re-form)))
   ;=> ((· (#function[eval6961/f--6962]))
   ;    (· (· (#function[eval6961/f--6962])))
   ;    (· (· (· (#function[eval6961/f--6962])))))
 
-  ;; nesting macros can be used to build self-equivalent re-entry FORMs:
+  ;; nesting macros can be useful for self-equivalent re-entry FORMs
   (let [re-form ((fn f [] `(<· [(~f) n] n)))]
     (take 3 (iterate eval re-form)))
   ;=> ((<· [(#function[eval6866/f--6867]) n] n)
   ;    (· (· (<· [(#function[eval6866/f--6867]) n] n) nil) nil)
   ;    (· (· (· (· (<· [(#function[eval6866/f--6867]) n] n) nil) nil) nil) nil))
-
-
-  ;; a different approach using symbol substitution by walking the form:
-  (let [re-form '{f (· f)}]
-    (take 3 (iterate #(walk/postwalk-replace re-form %) 'f)))
-  ;=> (f (· f) (· (· f)))
-
-  (let [re-form '{f (<· [f a] b)}]
-    (take 4 (iterate #(walk/postwalk-replace re-form %) 'f)))
-  ;=> (f
-  ;    (<· [f a] b)
-  ;    (<· [(<· [f a] b) a] b)
-  ;    (<· [(<· [(<· [f a] b) a] b) a] b))
-
-
-  ;; here is a more indirect functional approach building a lazy seq of FORMs:
-  (defn re-lazy [x]
-    (lazy-seq (cons x (re-lazy `(· ~x)))))
-
-  (last (take 5 (re-lazy n)))
-  ;=> (· (· (· (· nil))))
-
 
   ,)
 
